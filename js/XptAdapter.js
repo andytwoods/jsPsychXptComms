@@ -1,0 +1,9 @@
+function XptAdapter(jsPsycParams){
+
+
+
+
+
+
+
+}

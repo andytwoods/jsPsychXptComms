@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js" integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8=" crossorigin="anonymous"></script>
+    <script src="jsPsych/jspsych.js"></script>
+    <script src="jsPsych/plugins/jspsych-text.js"></script>
+    <script src="js/ExperimentComms.js"></script>
+    <script src="js/computerInfo.js"></script>
+    <link rel="stylesheet" href="jsPsych/css/jspsych.css"/>
+</head>
+<body>
+<div id="study-target"></div>
+</body>
+<script>
+
+    var expt_comms = ExperimentComms({expt_id:'expt_id', 'backend_url':'bla'})
+    var comp_info = computer_info()
+    expt_comms.extra_info(comp_info, true)
+
+    var trial = {
+        type: 'text',
+        text: 'Welcome to the experiment. Press any key to begin.'
+    }
+
+    var params = {
+        display_element: $('#study-target'),
+        timeline: [trial, trial, trial],
+    }
+
+    expt_comms.wireup(jsPsych, params);
+
+</script>
+</html>

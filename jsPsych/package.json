@@ -1,0 +1,7 @@
+{
+  "name": "jsPsyc",
+  "version": "yarn",
+  "main": "index.js",
+  "license": "MIT",
+  "author": "andytwoods <andy.woods@xperiment.mobi>"
+}
