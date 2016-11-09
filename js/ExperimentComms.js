@@ -16,12 +16,13 @@ var ExperimentComms = (function(params){
     var jsPsyc_instance
     var backend_url = params['backend_url']
     var first_send = false
+    var uuid = generateUUID()
 
     var api = {}
     api.specialTag = specialTag
-    var mandatory = {
-        expt_id: specialTag + params['expt_id']
-    }
+    var mandatory = {}
+    mandatory[specialTag+'expt_id'] = params['expt_id']
+    mandatory[specialTag+'uuid'] = uuid
 
     //defining special trial data
     ///////
@@ -30,7 +31,7 @@ var ExperimentComms = (function(params){
         user_id: '',
         client_ip: '',
         overSJs: '',
-        user: '',
+        user: ''
     }
     first_trial[SPECIAL_ID] = FIRST_TRIAL
     api.extra_info = function(info, decorate){
@@ -38,7 +39,7 @@ var ExperimentComms = (function(params){
         var decorateStr
         if(typeof(decorate) === "boolean" && decorate==true) decorateStr = specialTag
         else decorateStr = ''
-        
+
         for(var key in info){
             if(first_trial.hasOwnProperty(decorateStr+key)==true) throw 'devel err'
             first_trial[decorateStr+key] = info[key]
@@ -69,8 +70,6 @@ var ExperimentComms = (function(params){
         }
     }
 
-
-
     api.wireup = function(_jsPsyc, jsPsyc_params){
         jsPsyc_instance = _jsPsyc
         check_legal(jsPsyc_params, [], ['on_finish', 'on_trial_finish'], 'blocked param in jsPsyc_params' )
@@ -81,30 +80,55 @@ var ExperimentComms = (function(params){
         jsPsyc_instance.init(jsPsyc_params)
     }
 
-    function trial_data(data, callback){
-        if(first_send==false){
-            first_send = true
-            addRequired(data, first_trial)
+    function generateUUID(){
+        var d = new Date().getTime();
+        if(window.performance && typeof window.performance.now === "function"){
+            d += performance.now(); //use high-precision timer if available
         }
-        transmit(data, callback)
+        var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = (d + Math.random()*16)%16 | 0;
+            d = Math.floor(d/16);
+            return (c=='x' ? r : (r&0x3|0x8)).toString(16);
+        });
+        return uuid;
+    }
 
+    function label_data(data, label){
+        var labelled_data = {}
+        for(var key in data){
+            labelled_data[label + "_" + key] = data[key]
+        }
+        return labelled_data
+    }
+
+    function trial_data(data, callback) {
+        var labelled_data = label_data(data, data['internal_node_id'])
+        if (first_send == false) {
+            first_send = true
+            add(labelled_data, first_trial)
+        }
+        transmit(labelled_data, callback)
     }
 
     function end_study_data(data, callback){
-        addRequired(data, last_trial)
+        data = {} //data transmitted over study already and held in backup in case of failure & retransmitted on next trial
+        add(data, last_trial)
+        var extra = {}
+        extra[specialTag+'duration'] = jsPsyc_instance.totalTime() / 1000
+        add(data, extra)
         transmit(data, callback)
     }
 
-    function addRequired(orig, extra){
-        for(key in extra){
+    function add(orig, extra){
+        for(var key in extra){
             if(orig.hasOwnProperty(key)) throw 'devel err: required field ' + key + ' overwritten'
             orig[key] = extra[key]
         }
     }
 
     function transmit(data, callback){
-        addRequired(data, mandatory)
-
+        add(data, mandatory)
+        add(data, data_sendFailure_backup.get()) // add data to backup that failed to send previously
         window.setTimeout(function () {
             $.ajax({
                 url: backend_url,
@@ -116,19 +140,50 @@ var ExperimentComms = (function(params){
                 },
                 success: function (data) {
                     if (callback) {
-                        callback(data['status'], data);
+                        callback(data['status'], data)
                     }
                 },
                 error: function (jqXHR, error, errorThrown) {
-                    if (callback)    callback('fail');
+                    if (callback) {
+                        data_sendFailure_backup(data)
+                        callback('fail') // add data that failed to send to backup
+                    }
                 }
-            });
-        }, 0);
+            })
+        }, 0)
 
     }
-
-
-    return api;
+    return api
 })
 
+
+var data_sendFailure_backup = (function(){
+    var api = {}
+    var my_data ={}
+
+    api.add = function(data){
+        for(var key in data){
+            if(my_data.hasOwnProperty(key) == true)
+                throw('Request to add to datarepo. Data repo already has data col: '+key)
+            my_data[key] = data[key]
+        }
+    }
+
+    api.get = function(){
+        var my_data_copy = {}
+        for(var key in my_data){
+            my_data_copy[key] = my_data[key]
+        }
+    }
+
+    api.remove = function(data){
+        for(var key in data){
+            if(my_data.hasOwnProperty(key) == false)
+                throw('Request to remove from datarepo. data repo does not have data col: '+key)
+            delete my_data[key]
+        }
+    }
+
+    return api
+}())
 
